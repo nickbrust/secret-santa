@@ -1,0 +1,21 @@
+Foo:
+  email: inbox@mail.com
+  forbidden: []
+Bar:
+  email: inbox@mail.com
+  forbidden: []
+Baz:
+  email: inbox@mail.com
+  forbidden: []
+Biz:
+  email: inbox@mail.com
+  forbidden: ["Eggs", "Ham", "Spam"]
+Eggs:
+  email: inbox@mail.com
+  forbidden: ["Foo"]
+Ham:
+  email: inbox@mail.com
+  forbidden: []
+Spam:
+  email: inbox@mail.com
+  forbidden: ["Ham"]
