@@ -10,76 +10,98 @@ Set the following env vars:
 """
 import os
 import smtplib
+from dotenv import load_dotenv
 from copy import deepcopy
 from random import randint
 from yaml import safe_load
 
 # read email from env vars
-EMAIL = os.environ['EMAIL']
+load_dotenv()
+EMAIL = os.getenv('EMAIL')
 # read email app password from env vars (different from your "normal" password)
-EMAIL_APP_PASS = os.environ['EMAIL_APP_PASS']
+EMAIL_APP_PASS = os.getenv('EMAIL_APP_PASS')
 
-def draw(hat, person, drawn=None):
-    """
-    Person draws names from the hat until a valid name is drawn.
+class Party():
 
-    Drawing oneself or a name from one's forbidden list is invalid.
+    def __init__(self):
+        self.people = []
+        with open(os.getenv('PARTY'), 'r') as yam:
+            party = safe_load(yam)
+            for name, info in party.items():
+                self.people.append(Person(name, info))
 
-    Args:
-        hat (list): list of names still in the hat
-        person (dict): person drawing the name
-        drawn (list): forbidden names already drawn by person
+class Person():
 
-    Returns:
-        str||bool: name drawn or False if valid name is impossible to draw
-    """
-    # use deepcopy to avoid modifying hat in-place
-    hat = deepcopy(hat)
-    # break person dict into name and info
-    for name, info in person.items():
+    def __init__(self, name, info):
+        self.name = name
+        self.email = info['email']
+        self.forbidden = info['forbidden']
+        self.giftee = None
+
+class Hat():
+
+    def __init__(self):
+        with open(os.getenv('PARTY'), 'r') as yam:
+            party = safe_load(yam)
+            self.names = [person for person in party]
+
+    def draw(self, person, drawn=None):
+        """
+        Person draws names from the hat until a valid name is drawn.
+
+        Drawing oneself or a name from one's forbidden list is invalid.
+
+        Args:
+            person (Person): person drawing the name
+            drawn (list): forbidden names already drawn by person
+
+        Returns:
+            str||bool: name drawn or False if valid name is impossible to draw
+        """
+        # use deepcopy to avoid modifying hat in-place
+        backup_hat = deepcopy(self.names)
         # if last name in the hat is the person drawing or in their forbidden
-        if len(hat) == 1 and (hat[0] == name or hat[0] in info['forbidden']):
+        if len(self.names) == 1 and (self.names[0] == person.name or self.names[0] in person.forbidden):
             # return False to signal a full redraw
             return False
         # create empty drawn list on inital call of draw()
         if drawn is None:
             drawn = []
         # draw a random name from the hat
-        drawn.append(hat.pop(randint(0, len(hat)-1)))
+        drawn.append(self.names.pop(randint(0, len(self.names)-1)))
         # if drawn self or forbidden
-        if drawn[-1] == name or drawn[-1] in info['forbidden']:
+        if drawn[-1] == person.name or drawn[-1] in person.forbidden:
             print("draw again...")
             # try again, keep track of previously drawn names
-            return draw(hat, person, drawn)
+            self.names = backup_hat
+            return self.draw(person, drawn)
         # otherwise return the last (valid) drawn name
         return drawn[-1]
 
-def draw_names(hat, party):
-    """
-    Cycles through party, having each person draw a name from the hat.
+    def draw_names(self, party):
+        """
+        Cycles through party, having each person draw a name from the hat.
 
-    Performs redraws until a valid conclusion is reached.
-    Modifies party in-place by updating each participant's 'giftee'.
+        Performs redraws until a valid conclusion is reached.
+        Modifies party in-place by updating each participant's 'giftee'.
 
-    Args:
-        hat (list): list of names still in the hat
-        party (list): list of participants (dict)
-    """
-    # use deepcopy to avoid modifying hat and party in-place (used for redraws)
-    backup_hat = deepcopy(hat)
-    backup_party = deepcopy(party)
-    # cycle through party
-    for person in party:
-        # break person dict into name and info
-        for name, info in person.items():
+        Args:
+            party (Party): list of participants (dict)
+        """
+        # use deepcopy to avoid modifying hat and party in-place (used for redraws)
+        backup_hat = deepcopy(self.names)
+        backup_party = deepcopy(party)
+        # cycle through party
+        for person in party.people:
             # draw a name to be giftee
-            info['giftee'] = draw(hat, person)
+            giftee = self.draw(person)
             # False signals a full redraw
-            if not info['giftee']:
+            if not giftee:
                 print("redraw...")
-                return draw_names(backup_hat, backup_party)
-            # remove the drawn name from the hat
-            hat.remove(info['giftee'])
+                self.names = backup_hat
+                return self.draw_names(backup_party)
+            # otherwise, set giftee
+            person.giftee = giftee
 
 def email(person):
     """
@@ -115,23 +137,18 @@ def email(person):
         except:
             print('Something went wrong...')
 
+if __name__ == "__main__":
+    # list of participants from PARTY yaml
+    party = Party()
+    # a simple list of names in PARTY for the "hat"
+    hat = Hat()
 
-# list of participants from PARTY yaml
-party = []
-# a simple list of names in PARTY for the "hat"
-hat = []
-# read PARTY yaml, add giftee key, and build party and hat lists
-with open(os.environ['PARTY'], 'r') as yam:
-    PARTY = safe_load(yam)
-    for person, info in PARTY.items():
-        # add key to hold giftee
-        info.update({'giftee': ""})
-        party.append({person: info})
-        hat.append(person)
+    # run the secret santa drawing
+    hat.draw_names(party)
 
-# run the secret santa drawing
-draw_names(hat, party)
+    for person in party.people:
+        print(f"{person.name} got {person.giftee}")
 
-# email participants
-for person in party:
-    email(person)
+    # email participants
+    for person in party:
+        email(person)
