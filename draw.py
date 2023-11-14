@@ -10,7 +10,6 @@ Set the following env vars:
 """
 import os
 import smtplib
-from copy import deepcopy
 from random import randint
 from yaml import safe_load
 
@@ -20,15 +19,17 @@ EMAIL = os.getenv('EMAIL')
 EMAIL_APP_PASS = os.getenv('EMAIL_APP_PASS')
 
 class Party():
+    """Class representing the collection of participants in secret santa."""
 
     def __init__(self):
         self.people = []
-        with open(os.getenv('PARTY'), 'r') as yam:
-            party = safe_load(yam)
-            for name, info in party.items():
+        with open(os.getenv('PARTY'), 'r', encoding="utf-8") as yam:
+            data = safe_load(yam)
+            for name, info in data.items():
                 self.people.append(Person(name, info))
 
 class Person():
+    """Class representing a single participant in secret santa."""
 
     def __init__(self, name, info):
         self.name = name
@@ -37,37 +38,48 @@ class Person():
         self.giftee = None
 
 class Hat():
+    """Class representing hat of names."""
 
     def __init__(self):
-        with open(os.getenv('PARTY'), 'r') as yam:
-            party = safe_load(yam)
-            self.names = [person for person in party]
+        with open(os.getenv('PARTY'), 'r', encoding="utf-8") as yam:
+            data = safe_load(yam)
+            self.names = [person for person in data]
 
-    def draw(self, party):
-        for person in party.people:
+    def draw(self, group):
+        """
+        Each participant in the group will draw names from the hat.
+        Tries to avoid themselves and forbidden.
+
+        Args:
+            group (Party)
+        """
+        for participant in group.people:
             # prune hat before drawing
             pruned = []
             # remove person drawing
             try:
-                self.names.remove(person.name)
-                pruned.append(person.name)
-            except ValueError as val_err:
+                self.names.remove(participant.name)
+                pruned.append(participant.name)
+            except ValueError:
                 pass
             # remove forbidden
-            for name in person.forbidden:
+            for name in participant.forbidden:
                 try:
                     self.names.remove(name)
                     pruned.append(name)
-                except ValueError as val_err:
+                except ValueError:
                     pass
             # if none left, try to reconcile
             if len(self.names) == 0:
                 # take last pruned and try to make a viable swap
                 giftee = pruned.pop()
                 # look at party (not current person or their forbidden)
-                for other in [p for p in party.people if p.name != person.name and p.name not in person.forbidden]:
+                for other in [p for p in group.people \
+                    if p.name != group.name and p.name not in participant.forbidden]:
                     # see if their giftee works for current person
-                    if giftee not in other.forbidden and (other.giftee not in person.forbidden and other.giftee != person.name):
+                    if giftee not in other.forbidden and \
+                        other.giftee not in participant.forbidden and \
+                        other.giftee != participant.name:
                         # swap
                         new_giftee = other.giftee
                         other.giftee = giftee
@@ -76,27 +88,27 @@ class Hat():
             else:
                 # draw
                 giftee = self.names.pop(randint(0, len(self.names)-1))
-            person.giftee = giftee
+            participant.giftee = giftee
             # replace pruned
             self.names.extend(pruned)
 
-def email(person):
+def email(participant):
     """
     Sends email from host EMAIL to person, informing of giftee drawn.
 
     Only works with gmail as-written.
 
     Args:
-        person (Person): party participant
+        participant (Person): party participant
     """
     # build email
     subject = 'Secret Santa'
-    body = (f"Hello {person.name}!\n\n"
-            f"You are the Secret Santa for {person.giftee}!\n\n")
+    body = (f"Hello {participant.name}!\n\n"
+            f"You are the Secret Santa for {participant.giftee}!\n\n")
 
     # bring everything together
     email_text = (f"From: {EMAIL}\n"
-                    f"To: {person.email}\n"
+                    f"To: {participant.email}\n"
                     f"Subject: {subject}\n"
                     f"{body}")
 
@@ -105,11 +117,12 @@ def email(person):
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.ehlo()
         server.login(EMAIL, EMAIL_APP_PASS)
-        server.sendmail(EMAIL, person.email, email_text)
+        server.sendmail(EMAIL, participant.email, email_text)
         server.close()
         print('Email sent!')
-    except:
-        print('Something went wrong...')
+    except smtplib.SMTPException as smtp_err:
+        print('Something went wrong during email...')
+        print(smtp_err)
 
 if __name__ == "__main__":
     # list of participants from PARTY yaml
