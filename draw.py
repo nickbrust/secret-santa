@@ -11,7 +11,7 @@ Set the following env vars:
 import os
 import smtplib
 from random import randint
-from yaml import safe_load
+from yaml import safe_dump, safe_load
 
 # read email from env vars
 EMAIL = os.getenv('EMAIL')
@@ -141,3 +141,20 @@ if __name__ == "__main__":
     # email participants
     for person in party.people:
         email(person)
+
+    # build new party yaml for next time
+    party_dict = {}
+    for person in party.people:
+        new_forbidden = person.forbidden
+        # only preserve original forbidden
+        if len(new_forbidden) > 1:
+            new_forbidden = person.forbidden[:-1]
+        # add new giftee as forbidden
+        new_forbidden.append(person.giftee)
+        party_dict[person.name] = {
+            'email': person.email,
+            'forbidden': new_forbidden,
+        }
+    with open("next.yaml", 'w') as next_yam:
+        safe_dump(party_dict, next_yam)
+
