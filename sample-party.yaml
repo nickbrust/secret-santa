@@ -1,6 +1,7 @@
 Foo:
   email: inbox@mail.com
   forbidden: []
+  last_year: Bar
 Bar:
   email: inbox@mail.com
   forbidden: []
