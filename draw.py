@@ -12,11 +12,16 @@ Each participant in the PARTY yaml has:
     email: where to send their giftee
     forbidden: names they should never draw (e.g. their partner)
     last_year: (optional) who they drew last time; also avoided this time
+
+This year's picks are saved to <year>.yaml, which works as PARTY for next year.
+
+Pass --dry-run to check a drawing is possible without emailing or writing <year>.yaml.
 """
 import os
 import random
 import smtplib
 import sys
+from datetime import date
 from email.message import EmailMessage
 from yaml import safe_dump, safe_load
 
@@ -142,6 +147,14 @@ if __name__ == "__main__":
         print(err)
         sys.exit(1)
 
+    if '--dry-run' in sys.argv:
+        for person in party.people:
+            print(f"{person.name} -> {person.giftee} "
+                  f"(forbidden: {', '.join(person.forbidden) or 'none'}; "
+                  f"last year: {person.last_year or 'none'})")
+        print(f"Dry run: no emails sent, {date.today().year}.yaml not written.")
+        sys.exit(0)
+
     # build new party yaml for next time, saved before emailing so a failed send keeps the drawing
     party_dict = {}
     for person in party.people:
@@ -150,7 +163,7 @@ if __name__ == "__main__":
             'forbidden': person.forbidden,
             'last_year': person.giftee,
         }
-    with open("next.yaml", 'w', encoding="utf-8") as next_yam:
+    with open(f"{date.today().year}.yaml", 'w', encoding="utf-8") as next_yam:
         safe_dump(party_dict, next_yam, sort_keys=False)
 
     # email participants
