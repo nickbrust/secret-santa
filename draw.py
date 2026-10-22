@@ -142,10 +142,7 @@ if __name__ == "__main__":
         print(err)
         sys.exit(1)
 
-    # email participants
-    email_all(party)
-
-    # build new party yaml for next time
+    # build new party yaml for next time, saved before emailing so a failed send keeps the drawing
     party_dict = {}
     for person in party.people:
         party_dict[person.name] = {
@@ -155,3 +152,6 @@ if __name__ == "__main__":
         }
     with open("next.yaml", 'w', encoding="utf-8") as next_yam:
         safe_dump(party_dict, next_yam, sort_keys=False)
+
+    # email participants
+    email_all(party)
